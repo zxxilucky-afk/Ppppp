@@ -1,0 +1,7 @@
+<resources>
+    <string name="app_name">PINKORA</string>
+    <string name="app_tagline">Your Cycle. Your Comfort. Your Care.</string>
+    <string name="sign_in_with_google">Continue with Google</string>
+    <string name="notification_channel_name">PINKORA Wellness Reminders</string>
+    <string name="notification_channel_desc">Discreet reminders for hydration, check-ins, and cycle care</string>
+</resources>

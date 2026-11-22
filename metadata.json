@@ -1,0 +1,6 @@
+{
+  "name": "PINKORA",
+  "description": "Women's cycle tracking, symptom & mood wellness, hygiene education, private diary, and bilingual AI care assistant.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

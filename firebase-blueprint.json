@@ -1,0 +1,241 @@
+{
+  "entities": {
+    "UserProfile": {
+      "title": "UserProfile",
+      "description": "Private user wellness profile and cycle preferences (no RBAC fields).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string", "description": "Firebase Auth UID" },
+        "preferredName": { "type": "string", "description": "Preferred greeting name" },
+        "email": { "type": "string", "description": "Optional user email" },
+        "ageGroup": { "type": "string", "enum": ["teen_13_17", "adult_18_plus"] },
+        "language": { "type": "string", "enum": ["en", "hi"] },
+        "parentalConsentConfirmed": { "type": "boolean" },
+        "aiHealthDataConsent": { "type": "boolean" },
+        "onboardingCompleted": { "type": "boolean" },
+        "averageCycleLength": { "type": "integer" },
+        "averagePeriodLength": { "type": "integer" },
+        "ovulationTrackingEnabled": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time", "description": "Server timestamp" },
+        "updatedAt": { "type": "string", "format": "date-time", "description": "Server timestamp" }
+      },
+      "required": ["userId", "preferredName", "ageGroup", "language", "parentalConsentConfirmed", "aiHealthDataConsent", "onboardingCompleted", "averageCycleLength", "averagePeriodLength", "ovulationTrackingEnabled", "createdAt", "updatedAt"]
+    },
+    "PeriodRecord": {
+      "title": "PeriodRecord",
+      "description": "User period log entry with start/end epoch days and flow intensity.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "startDateEpochDay": { "type": "integer" },
+        "endDateEpochDay": { "type": "integer" },
+        "flowIntensity": { "type": "string", "enum": ["spotting", "light", "medium", "heavy"] },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "startDateEpochDay", "endDateEpochDay", "flowIntensity", "createdAt", "updatedAt"]
+    },
+    "SymptomRecord": {
+      "title": "SymptomRecord",
+      "description": "Daily pain and symptom tracker record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dateEpochDay": { "type": "integer" },
+        "symptoms": { "type": "array" },
+        "painIntensity": { "type": "integer" },
+        "redFlagAlert": { "type": "boolean" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "dateEpochDay", "symptoms", "painIntensity", "redFlagAlert", "createdAt", "updatedAt"]
+    },
+    "MoodRecord": {
+      "title": "MoodRecord",
+      "description": "Daily mood and energy check-in record.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dateEpochDay": { "type": "integer" },
+        "mood": { "type": "string", "enum": ["happy", "sad", "angry", "anxious", "stressed", "tired", "relaxed", "emotional"] },
+        "energyLevel": { "type": "integer" },
+        "notes": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "dateEpochDay", "mood", "energyLevel", "createdAt", "updatedAt"]
+    },
+    "DiaryEntry": {
+      "title": "DiaryEntry",
+      "description": "Private user journal entry (never visible to admins).",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "title": { "type": "string" },
+        "body": { "type": "string" },
+        "dateEpochDay": { "type": "integer" },
+        "moodTag": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "title", "body", "dateEpochDay", "createdAt", "updatedAt"]
+    },
+    "ReminderSetting": {
+      "title": "ReminderSetting",
+      "description": "Per-type notification and reminder configuration.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "type": { "type": "string", "enum": ["upcoming_period", "log_reminder", "water", "mood_checkin", "wellness_tip", "self_care"] },
+        "enabled": { "type": "boolean" },
+        "hour": { "type": "integer" },
+        "minute": { "type": "integer" },
+        "intervalHours": { "type": "integer" },
+        "discreetText": { "type": "boolean" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "type", "enabled", "hour", "minute", "intervalHours", "discreetText", "createdAt", "updatedAt"]
+    },
+    "WaterLog": {
+      "title": "WaterLog",
+      "description": "Daily hydration glasses tracking.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "dateEpochDay": { "type": "integer" },
+        "glassesCount": { "type": "integer" },
+        "targetGlasses": { "type": "integer" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "dateEpochDay", "glassesCount", "targetGlasses", "createdAt", "updatedAt"]
+    },
+    "EducationalArticle": {
+      "title": "EducationalArticle",
+      "description": "Bilingual Hindi/English educational article managed by admins.",
+      "type": "object",
+      "properties": {
+        "titleEn": { "type": "string" },
+        "titleHi": { "type": "string" },
+        "summaryEn": { "type": "string" },
+        "summaryHi": { "type": "string" },
+        "bodyEn": { "type": "string" },
+        "bodyHi": { "type": "string" },
+        "category": { "type": "string", "enum": ["hygiene", "first_period", "myths", "nutrition", "self_care", "when_to_see_doctor"] },
+        "ageAppropriateFor": { "type": "string", "enum": ["all", "teen_13_17", "adult_18_plus"] },
+        "reviewStatus": { "type": "string", "enum": ["draft_pending_doctor_review", "doctor_reviewed"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["titleEn", "titleHi", "summaryEn", "summaryHi", "bodyEn", "bodyHi", "category", "ageAppropriateFor", "reviewStatus", "createdAt", "updatedAt"]
+    },
+    "WellnessTip": {
+      "title": "WellnessTip",
+      "description": "Bilingual daily wellness tip.",
+      "type": "object",
+      "properties": {
+        "textEn": { "type": "string" },
+        "textHi": { "type": "string" },
+        "category": { "type": "string", "enum": ["hydration", "comfort", "mood", "nutrition", "hygiene"] },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["textEn", "textHi", "category", "createdAt", "updatedAt"]
+    },
+    "FaqItem": {
+      "title": "FaqItem",
+      "description": "Bilingual FAQ fallback item for Care Assistant.",
+      "type": "object",
+      "properties": {
+        "questionEn": { "type": "string" },
+        "questionHi": { "type": "string" },
+        "answerEn": { "type": "string" },
+        "answerHi": { "type": "string" },
+        "category": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["questionEn", "questionHi", "answerEn", "answerHi", "category", "createdAt", "updatedAt"]
+    },
+    "SupportRequest": {
+      "title": "SupportRequest",
+      "description": "User support ticket viewable by owner and admins.",
+      "type": "object",
+      "properties": {
+        "userId": { "type": "string" },
+        "subject": { "type": "string" },
+        "message": { "type": "string" },
+        "status": { "type": "string", "enum": ["open", "in_progress", "resolved"] },
+        "adminReply": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["userId", "subject", "message", "status", "createdAt", "updatedAt"]
+    },
+    "AdminLog": {
+      "title": "AdminLog",
+      "description": "Immutable admin audit log entry.",
+      "type": "object",
+      "properties": {
+        "adminId": { "type": "string" },
+        "action": { "type": "string" },
+        "target": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["adminId", "action", "target", "createdAt"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": { "$ref": "#/entities/UserProfile" },
+      "description": "User wellness profile isolated to owner."
+    },
+    "/users/{userId}/period_records/{recordId}": {
+      "schema": { "$ref": "#/entities/PeriodRecord" },
+      "description": "Private period records isolated to owner; closed to admins."
+    },
+    "/users/{userId}/symptom_records/{recordId}": {
+      "schema": { "$ref": "#/entities/SymptomRecord" },
+      "description": "Private symptom records isolated to owner; closed to admins."
+    },
+    "/users/{userId}/mood_records/{recordId}": {
+      "schema": { "$ref": "#/entities/MoodRecord" },
+      "description": "Private mood records isolated to owner; closed to admins."
+    },
+    "/users/{userId}/diary_entries/{entryId}": {
+      "schema": { "$ref": "#/entities/DiaryEntry" },
+      "description": "Private diary entries isolated to owner; never visible to admins."
+    },
+    "/users/{userId}/reminders/{reminderId}": {
+      "schema": { "$ref": "#/entities/ReminderSetting" },
+      "description": "Per-type reminder settings isolated to owner."
+    },
+    "/users/{userId}/water_logs/{logId}": {
+      "schema": { "$ref": "#/entities/WaterLog" },
+      "description": "Daily hydration logs isolated to owner."
+    },
+    "/educational_articles/{articleId}": {
+      "schema": { "$ref": "#/entities/EducationalArticle" },
+      "description": "Educational articles readable by signed-in users, writable by admins."
+    },
+    "/wellness_tips/{tipId}": {
+      "schema": { "$ref": "#/entities/WellnessTip" },
+      "description": "Daily wellness tips readable by signed-in users, writable by admins."
+    },
+    "/faq/{faqId}": {
+      "schema": { "$ref": "#/entities/FaqItem" },
+      "description": "FAQ fallback entries readable by signed-in users, writable by admins."
+    },
+    "/support_requests/{requestId}": {
+      "schema": { "$ref": "#/entities/SupportRequest" },
+      "description": "Support tickets isolated to creator and admins."
+    },
+    "/admin_logs/{logId}": {
+      "schema": { "$ref": "#/entities/AdminLog" },
+      "description": "Admin activity audit log."
+    }
+  }
+}

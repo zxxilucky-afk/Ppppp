@@ -1,0 +1,407 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    // 1. Global default-deny safety net
+    match /{document=**} {
+      allow read, write: if false;
+    }
+
+    // 2. Shared helpers
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(userId) {
+      return isSignedIn() && request.auth.uid == userId;
+    }
+
+    function isValidId(id) {
+      return id is string && id.size() >= 1 && id.size() <= 128 && id.matches('^[a-zA-Z0-9_\\-]+$');
+    }
+
+    function incoming() {
+      return request.resource.data;
+    }
+
+    function existing() {
+      return resource.data;
+    }
+
+    function isAdmin() {
+      return isSignedIn() && (
+        exists(/databases/$(database)/documents/admins/$(request.auth.uid)) ||
+        (
+          'email_verified' in request.auth.token &&
+          request.auth.token.email_verified == true &&
+          'email' in request.auth.token &&
+          request.auth.token.email == 'luckymbbs44@gmail.com'
+        )
+      );
+    }
+
+    // 3. Entity validators
+    function isValidUserProfile(data, userId) {
+      return data.userId == userId &&
+        data.preferredName is string && data.preferredName.size() >= 1 && data.preferredName.size() <= 50 &&
+        (!('email' in data) || (data.email is string && data.email.size() <= 120)) &&
+        data.ageGroup in ['teen_13_17', 'adult_18_plus'] &&
+        data.language in ['en', 'hi'] &&
+        data.parentalConsentConfirmed is bool &&
+        data.aiHealthDataConsent is bool &&
+        data.onboardingCompleted is bool &&
+        data.averageCycleLength is int && data.averageCycleLength >= 21 && data.averageCycleLength <= 45 &&
+        data.averagePeriodLength is int && data.averagePeriodLength >= 2 && data.averagePeriodLength <= 10 &&
+        data.ovulationTrackingEnabled is bool &&
+        (data.ageGroup == 'adult_18_plus' || data.ovulationTrackingEnabled == false) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidPeriodRecord(data, userId) {
+      return data.userId == userId &&
+        data.startDateEpochDay is int && data.startDateEpochDay >= 10000 && data.startDateEpochDay <= 40000 &&
+        data.endDateEpochDay is int && data.endDateEpochDay >= 0 && data.endDateEpochDay <= 40000 &&
+        (data.endDateEpochDay == 0 || data.endDateEpochDay >= data.startDateEpochDay) &&
+        data.flowIntensity in ['spotting', 'light', 'medium', 'heavy'] &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSymptomRecord(data, userId) {
+      return data.userId == userId &&
+        data.dateEpochDay is int && data.dateEpochDay >= 10000 && data.dateEpochDay <= 40000 &&
+        data.symptoms is list && data.symptoms.size() <= 10 &&
+        (data.symptoms.size() == 0 || (data.symptoms[0] is string && data.symptoms[0].size() <= 50)) &&
+        data.painIntensity is int && data.painIntensity >= 0 && data.painIntensity <= 10 &&
+        data.redFlagAlert is bool &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidMoodRecord(data, userId) {
+      return data.userId == userId &&
+        data.dateEpochDay is int && data.dateEpochDay >= 10000 && data.dateEpochDay <= 40000 &&
+        data.mood in ['happy', 'sad', 'angry', 'anxious', 'stressed', 'tired', 'relaxed', 'emotional'] &&
+        data.energyLevel is int && data.energyLevel >= 1 && data.energyLevel <= 5 &&
+        (!('notes' in data) || (data.notes is string && data.notes.size() <= 500)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidDiaryEntry(data, userId) {
+      return data.userId == userId &&
+        data.title is string && data.title.size() >= 1 && data.title.size() <= 120 &&
+        data.body is string && data.body.size() >= 1 && data.body.size() <= 5000 &&
+        data.dateEpochDay is int && data.dateEpochDay >= 10000 && data.dateEpochDay <= 40000 &&
+        (!('moodTag' in data) || (data.moodTag is string && data.moodTag.size() <= 40)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidReminderSetting(data, userId) {
+      return data.userId == userId &&
+        data.type in ['upcoming_period', 'log_reminder', 'water', 'mood_checkin', 'wellness_tip', 'self_care'] &&
+        data.enabled is bool &&
+        data.hour is int && data.hour >= 0 && data.hour <= 23 &&
+        data.minute is int && data.minute >= 0 && data.minute <= 59 &&
+        data.intervalHours is int && data.intervalHours >= 0 && data.intervalHours <= 24 &&
+        data.discreetText is bool &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidWaterLog(data, userId) {
+      return data.userId == userId &&
+        data.dateEpochDay is int && data.dateEpochDay >= 10000 && data.dateEpochDay <= 40000 &&
+        data.glassesCount is int && data.glassesCount >= 0 && data.glassesCount <= 30 &&
+        data.targetGlasses is int && data.targetGlasses >= 1 && data.targetGlasses <= 20 &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidEducationalArticle(data) {
+      return data.titleEn is string && data.titleEn.size() >= 1 && data.titleEn.size() <= 150 &&
+        data.titleHi is string && data.titleHi.size() >= 1 && data.titleHi.size() <= 150 &&
+        data.summaryEn is string && data.summaryEn.size() >= 1 && data.summaryEn.size() <= 300 &&
+        data.summaryHi is string && data.summaryHi.size() >= 1 && data.summaryHi.size() <= 300 &&
+        data.bodyEn is string && data.bodyEn.size() >= 1 && data.bodyEn.size() <= 8000 &&
+        data.bodyHi is string && data.bodyHi.size() >= 1 && data.bodyHi.size() <= 8000 &&
+        data.category in ['hygiene', 'first_period', 'myths', 'nutrition', 'self_care', 'when_to_see_doctor'] &&
+        data.ageAppropriateFor in ['all', 'teen_13_17', 'adult_18_plus'] &&
+        data.reviewStatus in ['draft_pending_doctor_review', 'doctor_reviewed'] &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidWellnessTip(data) {
+      return data.textEn is string && data.textEn.size() >= 1 && data.textEn.size() <= 500 &&
+        data.textHi is string && data.textHi.size() >= 1 && data.textHi.size() <= 500 &&
+        data.category in ['hydration', 'comfort', 'mood', 'nutrition', 'hygiene'] &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidFaqItem(data) {
+      return data.questionEn is string && data.questionEn.size() >= 1 && data.questionEn.size() <= 300 &&
+        data.questionHi is string && data.questionHi.size() >= 1 && data.questionHi.size() <= 300 &&
+        data.answerEn is string && data.answerEn.size() >= 1 && data.answerEn.size() <= 2000 &&
+        data.answerHi is string && data.answerHi.size() >= 1 && data.answerHi.size() <= 2000 &&
+        data.category is string && data.category.size() >= 1 && data.category.size() <= 60 &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidSupportRequest(data) {
+      return data.userId is string && data.userId.size() >= 1 && data.userId.size() <= 128 &&
+        data.subject is string && data.subject.size() >= 1 && data.subject.size() <= 120 &&
+        data.message is string && data.message.size() >= 1 && data.message.size() <= 2000 &&
+        data.status in ['open', 'in_progress', 'resolved'] &&
+        (!('adminReply' in data) || (data.adminReply is string && data.adminReply.size() <= 2000)) &&
+        data.createdAt is timestamp && data.createdAt <= request.time &&
+        data.updatedAt is timestamp && data.updatedAt <= request.time;
+    }
+
+    function isValidAdminLog(data) {
+      return data.adminId is string && data.adminId.size() >= 1 && data.adminId.size() <= 128 &&
+        data.action is string && data.action.size() >= 1 && data.action.size() <= 120 &&
+        data.target is string && data.target.size() >= 1 && data.target.size() <= 120 &&
+        data.createdAt is timestamp && data.createdAt <= request.time;
+    }
+
+    // 4. User Profile & Private Health Collections (Strictly Owner-Only; Admins Denied)
+    match /users/{userId} {
+      allow get: if isOwner(userId) && isValidId(userId);
+      allow list: if false;
+
+      allow create: if isOwner(userId) &&
+        isValidId(userId) &&
+        incoming().keys().hasAll([
+          'userId', 'preferredName', 'ageGroup', 'language',
+          'parentalConsentConfirmed', 'aiHealthDataConsent', 'onboardingCompleted',
+          'averageCycleLength', 'averagePeriodLength', 'ovulationTrackingEnabled',
+          'createdAt', 'updatedAt'
+        ]) &&
+        incoming().keys().hasOnly([
+          'userId', 'preferredName', 'email', 'ageGroup', 'language',
+          'parentalConsentConfirmed', 'aiHealthDataConsent', 'onboardingCompleted',
+          'averageCycleLength', 'averagePeriodLength', 'ovulationTrackingEnabled',
+          'createdAt', 'updatedAt'
+        ]) &&
+        isValidUserProfile(incoming(), userId);
+
+      allow update: if isOwner(userId) &&
+        isValidId(userId) &&
+        isValidUserProfile(incoming(), userId) &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly([
+          'preferredName', 'email', 'ageGroup', 'language',
+          'parentalConsentConfirmed', 'aiHealthDataConsent', 'onboardingCompleted',
+          'averageCycleLength', 'averagePeriodLength', 'ovulationTrackingEnabled',
+          'updatedAt'
+        ]);
+
+      allow delete: if isOwner(userId) && isValidId(userId);
+
+      match /period_records/{recordId} {
+        allow get: if isOwner(userId) && isValidId(recordId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(recordId) &&
+          incoming().keys().hasAll(['userId', 'startDateEpochDay', 'endDateEpochDay', 'flowIntensity', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'startDateEpochDay', 'endDateEpochDay', 'flowIntensity', 'notes', 'createdAt', 'updatedAt']) &&
+          isValidPeriodRecord(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(recordId) &&
+          isValidPeriodRecord(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['startDateEpochDay', 'endDateEpochDay', 'flowIntensity', 'notes', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(recordId);
+      }
+
+      match /symptom_records/{recordId} {
+        allow get: if isOwner(userId) && isValidId(recordId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(recordId) &&
+          incoming().keys().hasAll(['userId', 'dateEpochDay', 'symptoms', 'painIntensity', 'redFlagAlert', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'dateEpochDay', 'symptoms', 'painIntensity', 'redFlagAlert', 'notes', 'createdAt', 'updatedAt']) &&
+          isValidSymptomRecord(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(recordId) &&
+          isValidSymptomRecord(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['dateEpochDay', 'symptoms', 'painIntensity', 'redFlagAlert', 'notes', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(recordId);
+      }
+
+      match /mood_records/{recordId} {
+        allow get: if isOwner(userId) && isValidId(recordId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(recordId) &&
+          incoming().keys().hasAll(['userId', 'dateEpochDay', 'mood', 'energyLevel', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'dateEpochDay', 'mood', 'energyLevel', 'notes', 'createdAt', 'updatedAt']) &&
+          isValidMoodRecord(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(recordId) &&
+          isValidMoodRecord(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['dateEpochDay', 'mood', 'energyLevel', 'notes', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(recordId);
+      }
+
+      match /diary_entries/{entryId} {
+        allow get: if isOwner(userId) && isValidId(entryId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(entryId) &&
+          incoming().keys().hasAll(['userId', 'title', 'body', 'dateEpochDay', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'title', 'body', 'dateEpochDay', 'moodTag', 'createdAt', 'updatedAt']) &&
+          isValidDiaryEntry(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(entryId) &&
+          isValidDiaryEntry(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['title', 'body', 'dateEpochDay', 'moodTag', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(entryId);
+      }
+
+      match /reminders/{reminderId} {
+        allow get: if isOwner(userId) && isValidId(reminderId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(reminderId) &&
+          incoming().keys().hasAll(['userId', 'type', 'enabled', 'hour', 'minute', 'intervalHours', 'discreetText', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'type', 'enabled', 'hour', 'minute', 'intervalHours', 'discreetText', 'createdAt', 'updatedAt']) &&
+          isValidReminderSetting(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(reminderId) &&
+          isValidReminderSetting(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['enabled', 'hour', 'minute', 'intervalHours', 'discreetText', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(reminderId);
+      }
+
+      match /water_logs/{logId} {
+        allow get: if isOwner(userId) && isValidId(logId);
+        allow list: if isOwner(userId);
+        allow create: if isOwner(userId) &&
+          isValidId(logId) &&
+          incoming().keys().hasAll(['userId', 'dateEpochDay', 'glassesCount', 'targetGlasses', 'createdAt', 'updatedAt']) &&
+          incoming().keys().hasOnly(['userId', 'dateEpochDay', 'glassesCount', 'targetGlasses', 'createdAt', 'updatedAt']) &&
+          isValidWaterLog(incoming(), userId);
+        allow update: if isOwner(userId) &&
+          isValidId(logId) &&
+          isValidWaterLog(incoming(), userId) &&
+          incoming().userId == existing().userId &&
+          incoming().createdAt == existing().createdAt &&
+          incoming().diff(existing()).affectedKeys().hasOnly(['glassesCount', 'targetGlasses', 'updatedAt']);
+        allow delete: if isOwner(userId) && isValidId(logId);
+      }
+    }
+
+    // 5. Publicly readable (signed-in) educational & wellness content (Admin-managed)
+    match /educational_articles/{articleId} {
+      allow get: if isSignedIn() && isValidId(articleId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() &&
+        isValidId(articleId) &&
+        isValidEducationalArticle(incoming()) &&
+        isAdmin() &&
+        incoming().keys().hasAll(['titleEn', 'titleHi', 'summaryEn', 'summaryHi', 'bodyEn', 'bodyHi', 'category', 'ageAppropriateFor', 'reviewStatus', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['titleEn', 'titleHi', 'summaryEn', 'summaryHi', 'bodyEn', 'bodyHi', 'category', 'ageAppropriateFor', 'reviewStatus', 'createdAt', 'updatedAt']);
+      allow update: if isSignedIn() &&
+        isValidId(articleId) &&
+        isValidEducationalArticle(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['titleEn', 'titleHi', 'summaryEn', 'summaryHi', 'bodyEn', 'bodyHi', 'category', 'ageAppropriateFor', 'reviewStatus', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(articleId) && isAdmin();
+    }
+
+    match /wellness_tips/{tipId} {
+      allow get: if isSignedIn() && isValidId(tipId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() &&
+        isValidId(tipId) &&
+        isValidWellnessTip(incoming()) &&
+        isAdmin() &&
+        incoming().keys().hasAll(['textEn', 'textHi', 'category', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['textEn', 'textHi', 'category', 'createdAt', 'updatedAt']);
+      allow update: if isSignedIn() &&
+        isValidId(tipId) &&
+        isValidWellnessTip(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['textEn', 'textHi', 'category', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(tipId) && isAdmin();
+    }
+
+    match /faq/{faqId} {
+      allow get: if isSignedIn() && isValidId(faqId);
+      allow list: if isSignedIn();
+      allow create: if isSignedIn() &&
+        isValidId(faqId) &&
+        isValidFaqItem(incoming()) &&
+        isAdmin() &&
+        incoming().keys().hasAll(['questionEn', 'questionHi', 'answerEn', 'answerHi', 'category', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['questionEn', 'questionHi', 'answerEn', 'answerHi', 'category', 'createdAt', 'updatedAt']);
+      allow update: if isSignedIn() &&
+        isValidId(faqId) &&
+        isValidFaqItem(incoming()) &&
+        isAdmin() &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['questionEn', 'questionHi', 'answerEn', 'answerHi', 'category', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(faqId) && isAdmin();
+    }
+
+    // 6. Support Requests (User creates & reads own; Admins read & respond)
+    match /support_requests/{requestId} {
+      allow get: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+      allow list: if isSignedIn() && (existing().userId == request.auth.uid || isAdmin());
+      allow create: if isSignedIn() &&
+        isValidId(requestId) &&
+        isValidSupportRequest(incoming()) &&
+        incoming().userId == request.auth.uid &&
+        incoming().status == 'open' &&
+        incoming().keys().hasAll(['userId', 'subject', 'message', 'status', 'createdAt', 'updatedAt']) &&
+        incoming().keys().hasOnly(['userId', 'subject', 'message', 'status', 'adminReply', 'createdAt', 'updatedAt']);
+      allow update: if isSignedIn() &&
+        isValidId(requestId) &&
+        isValidSupportRequest(incoming()) &&
+        isAdmin() &&
+        incoming().userId == existing().userId &&
+        incoming().createdAt == existing().createdAt &&
+        incoming().diff(existing()).affectedKeys().hasOnly(['status', 'adminReply', 'updatedAt']);
+      allow delete: if isSignedIn() && isValidId(requestId) && (existing().userId == request.auth.uid || isAdmin());
+    }
+
+    // 7. Admin Registry & Logs
+    match /admins/{adminId} {
+      allow get: if isSignedIn() && isValidId(adminId) && request.auth.uid == adminId;
+      allow list, create, update, delete: if false;
+    }
+
+    match /admin_logs/{logId} {
+      allow get: if isSignedIn() && isValidId(logId) && isAdmin();
+      allow list: if isSignedIn() && isAdmin();
+      allow create: if isSignedIn() &&
+        isValidId(logId) &&
+        isValidAdminLog(incoming()) &&
+        isAdmin() &&
+        incoming().adminId == request.auth.uid &&
+        incoming().keys().hasAll(['adminId', 'action', 'target', 'createdAt']) &&
+        incoming().keys().hasOnly(['adminId', 'action', 'target', 'createdAt']);
+      allow update, delete: if false;
+    }
+  }
+}
